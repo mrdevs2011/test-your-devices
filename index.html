@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Test Your Devices</title>
+<style>
+  :root{
+    --bg:#0f1115; --card:#181b22; --border:#262b36; --text:#e8eaed; --sub:#93a0b4;
+    --accent:#5b8def; --accent2:#3ecf8e; --danger:#ef5b5b; --warn:#e8c547;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#171a21; --sub:#5b6675;
+    }
+  }
+  :root[data-theme="light"]{
+    --bg:#f5f6f8; --card:#ffffff; --border:#e2e5ea; --text:#171a21; --sub:#5b6675;
+  }
+  *{box-sizing:border-box;}
+  html{scroll-padding-top:env(safe-area-inset-top,0px);}
+  body{
+    margin:0; background:var(--bg); color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    padding:16px; padding-top:calc(16px + env(safe-area-inset-top,0px));
+    padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));
+  }
+  h1{font-size:20px; margin:0 0 4px;}
+  .lead{color:var(--sub); font-size:13px; margin:0 0 18px;}
+  .tabs{display:flex; gap:8px; margin-bottom:16px;}
+  .tab{
+    flex:1; padding:10px; text-align:center; border-radius:10px; cursor:pointer;
+    background:var(--card); border:1px solid var(--border); font-weight:600; font-size:14px;
+  }
+  .tab.active{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .panel{display:none;}
+  .panel.active{display:block;}
+  .card{
+    background:var(--card); border:1px solid var(--border); border-radius:14px;
+    padding:16px; margin-bottom:14px;
+  }
+  .card h2{font-size:15px; margin:0 0 10px;}
+  .card p.desc{color:var(--sub); font-size:13px; margin:0 0 12px;}
+  .row{display:flex; gap:10px; flex-wrap:wrap;}
+  button{
+    background:var(--accent); color:#fff; border:none; border-radius:10px;
+    padding:11px 14px; font-size:14px; font-weight:600; cursor:pointer; flex:1;
+  }
+  button.secondary{background:var(--border); color:var(--text);}
+  button:active{opacity:0.8;}
+  .stereo-btn{flex-direction:column; padding:16px; font-size:13px;}
+  .stereo-row{display:flex; gap:10px;}
+  input[type=range]{width:100%;}
+  .val{font-size:12px; color:var(--sub); margin-top:4px;}
+  .pad{
+    height:180px; border:2px dashed var(--border); border-radius:12px;
+    display:flex; align-items:center; justify-content:center; position:relative;
+    background:var(--bg); overflow:hidden; user-select:none; touch-action:none;
+  }
+  #dot{
+    width:22px; height:22px; border-radius:50%; background:var(--accent);
+    position:absolute; left:50%; top:50%; transform:translate(-50%,-50%);
+    box-shadow:0 0 12px var(--accent);
+  }
+  .stats{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:12px;}
+  .stat{background:var(--bg); border:1px solid var(--border); border-radius:10px; padding:10px; text-align:center;}
+  .stat .n{font-size:20px; font-weight:700;}
+  .stat .l{font-size:11px; color:var(--sub);}
+  .clickpad{
+    height:90px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+    font-weight:700; font-size:14px; border:1px solid var(--border); cursor:pointer; user-select:none;
+    background:var(--bg); transition:background .1s;
+  }
+  .clickpad.flash{background:var(--accent2); color:#08110c;}
+  .scrollbox{
+    height:140px; overflow-y:auto; border:1px solid var(--border); border-radius:12px;
+    background:var(--bg); position:relative;
+  }
+  .scrollbox .filler{height:600px; display:flex; align-items:center; justify-content:center; color:var(--sub); font-size:13px;}
+  .scroll-indicator{
+    position:sticky; top:0; background:var(--accent); color:#fff; font-weight:700;
+    text-align:center; padding:6px; font-size:12px;
+  }
+  .reset{margin-top:10px;}
+  small.note{color:var(--sub); display:block; margin-top:8px; font-size:11px;}
+  .field{margin-bottom:10px;}
+  .field label{font-size:12px; color:var(--sub); display:block; margin-bottom:5px;}
+  .field input[type=text], .field select{
+    width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
+    background:var(--bg); color:var(--text); font-size:14px;
+  }
+  .devlist{margin-top:12px; display:flex; flex-direction:column; gap:8px;}
+  .devitem{
+    display:flex; align-items:center; gap:10px; padding:10px; border-radius:10px;
+    background:var(--bg); border:1px solid var(--border);
+  }
+  .devitem .di-name{flex:1; font-size:14px; font-weight:600;}
+  .devitem .di-type{font-size:11px; color:var(--sub);}
+  .di-status{width:9px; height:9px; border-radius:50%; background:var(--sub); flex:none;}
+  .di-status.done{background:var(--accent2);}
+  .devitem button{flex:none; padding:7px 10px; font-size:12px;}
+  .banner{
+    background:var(--accent); color:#fff; padding:10px 12px; border-radius:10px;
+    font-size:13px; font-weight:600; margin-bottom:14px; display:none;
+  }
+  .banner.show{display:block;}
+  .empty{color:var(--sub); font-size:13px; text-align:center; padding:10px 0;}
+</style>
+</head>
+<body>
+
+<h1>Test Your Devices</h1>
+<p class="lead">Qurilmalaringizni qo'shing va navbat bilan sinab ko'ring</p>
+
+<div class="tabs">
+  <div class="tab active" data-tab="dashboard">Dashboard</div>
+  <div class="tab" data-tab="headphones">Naushnik</div>
+  <div class="tab" data-tab="mouse">Sichqoncha</div>
+</div>
+
+<!-- DASHBOARD -->
+<div class="panel active" id="panel-dashboard">
+  <div class="card">
+    <h2>Nimani test qilmoqchisiz?</h2>
+    <p class="desc">Qurilma nomini kiriting (masalan: "Sony WH-1000", "Ofis sichqonchasi 1") va turini tanlang.</p>
+    <div class="field">
+      <label>Qurilma nomi</label>
+      <input type="text" id="devName" placeholder="Masalan: Naushnik #1">
+    </div>
+    <div class="field">
+      <label>Turi</label>
+      <select id="devType">
+        <option value="headphones">Naushnik</option>
+        <option value="mouse">Sichqoncha</option>
+      </select>
+    </div>
+    <button onclick="addDevice()">+ Ro'yxatga qo'shish</button>
+  </div>
+
+  <div class="card">
+    <h2>Qurilmalar ro'yxati</h2>
+    <div class="devlist" id="devList"></div>
+    <div class="empty" id="devEmpty">Hali qurilma qo'shilmagan</div>
+  </div>
+</div>
+
+<!-- HEADPHONES -->
+<div class="panel" id="panel-headphones">
+  <div class="banner" id="bannerHeadphones"></div>
+
+  <div class="card">
+    <h2>Stereo kanal testi (chap / o'ng)</h2>
+    <p class="desc">Naushnikni kiying va tugmani bosing — tovush qaysi qulog'ingizdan chiqayotganini tekshiring.</p>
+    <div class="stereo-row">
+      <button class="stereo-btn" onclick="playChannel('left')">Chap quloq</button>
+      <button class="stereo-btn" onclick="playChannel('both')">Ikkalasi</button>
+      <button class="stereo-btn" onclick="playChannel('right')">O'ng quloq</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Chastota diapazoni (bas / o'rta / yuqori)</h2>
+    <p class="desc">Har uchala tugmani bosib, tovush eshitilishini solishtiring — driverlarda nosozlik bo'lsa, biror chastota "yo'qoladi".</p>
+    <div class="row">
+      <button onclick="playTone(80)">Bas (80Hz)</button>
+      <button onclick="playTone(1000)">O'rta (1kHz)</button>
+      <button onclick="playTone(8000)">Yuqori (8kHz)</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Ovoz balandligi</h2>
+    <input type="range" id="volSlider" min="0" max="100" value="50" oninput="updateVol()">
+    <div class="val" id="volVal">50%</div>
+    <button class="secondary" style="margin-top:10px" onclick="playSweep()">Uzluksiz tovush yurgizish (2s)</button>
+  </div>
+
+  <div class="card">
+    <h2>Mikrofon (agar bo'lsa)</h2>
+    <p class="desc">Gapiring — ovoz darajasi ko'rsatkichi harakatlanishi kerak.</p>
+    <button onclick="toggleMic()" id="micBtn">Mikrofonni yoqish</button>
+    <div style="height:14px; background:var(--bg); border:1px solid var(--border); border-radius:7px; margin-top:10px; overflow:hidden;">
+      <div id="micBar" style="height:100%; width:0%; background:var(--accent2); transition:width .05s;"></div>
+    </div>
+    <small class="note" id="micNote"></small>
+  </div>
+
+</div>
+
+<!-- MOUSE -->
+<div class="panel" id="panel-mouse">
+  <div class="banner" id="bannerMouse"></div>
+
+  <div class="card">
+    <h2>Tugmalar testi (chap / o'ng / o'rta)</h2>
+    <p class="desc">Quyidagi maydonda mos tugmani bosing.</p>
+    <div class="row">
+      <div class="clickpad" id="btnLeft" oncontextmenu="return false" onmousedown="flashBtn('btnLeft', event, 0)">Chap</div>
+      <div class="clickpad" id="btnMiddle" onmousedown="flashBtn('btnMiddle', event, 1)">O'rta / g'ildirak</div>
+      <div class="clickpad" id="btnRight" oncontextmenu="return false" onmousedown="flashBtn('btnRight', event, 2)">O'ng</div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="cntLeft">0</div><div class="l">Chap bosildi</div></div>
+      <div class="stat"><div class="n" id="cntMiddle">0</div><div class="l">O'rta bosildi</div></div>
+      <div class="stat"><div class="n" id="cntRight">0</div><div class="l">O'ng bosildi</div></div>
+      <div class="stat"><div class="n" id="cntDouble">0</div><div class="l">Double-click</div></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Harakat / sensor testi</h2>
+    <p class="desc">Sichqonchani doira ustida harakatlantiring — u tekis, tutilmasdan yurishi kerak.</p>
+    <div class="pad" id="movePad" onmousemove="trackMove(event)">
+      <div id="dot"></div>
+    </div>
+    <div class="stats">
+      <div class="stat"><div class="n" id="moveDist">0</div><div class="l">Bosib o'tilgan (px)</div></div>
+      <div class="stat"><div class="n" id="moveSpeed">0</div><div class="l">So'nggi tezlik (px/s)</div></div>
+    </div>
+    <button class="secondary reset" onclick="resetMove()">Tozalash</button>
+  </div>
+
+  <div class="card">
+    <h2>G'ildirak (scroll) testi</h2>
+    <p class="desc">Quyidagi maydonni g'ildirak bilan aylantiring.</p>
+    <div class="scrollbox" id="scrollBox" onscroll="onScroll()">
+      <div class="scroll-indicator" id="scrollInd">Scroll: 0px</div>
+      <div class="filler">Pastga aylantiring</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ---- TAB SWITCH ----
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active', x.dataset.tab===name));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.toggle('active', x.id==='panel-'+name));
+}
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick = ()=> switchTab(t.dataset.tab);
+});
+
+// ---- DEVICES (dashboard) ----
+let devices = [];
+try{ devices = JSON.parse(localStorage.getItem('tyd_devices')||'[]'); }catch(e){ devices = []; }
+function saveDevices(){
+  try{ localStorage.setItem('tyd_devices', JSON.stringify(devices)); }catch(e){}
+}
+function addDevice(){
+  const nameEl = document.getElementById('devName');
+  const name = nameEl.value.trim();
+  const type = document.getElementById('devType').value;
+  if(!name) return;
+  devices.push({id:Date.now(), name, type, tested:false});
+  nameEl.value='';
+  saveDevices();
+  renderDevices();
+}
+function removeDevice(id){
+  devices = devices.filter(d=>d.id!==id);
+  saveDevices();
+  renderDevices();
+}
+function toggleTested(id){
+  const d = devices.find(x=>x.id===id);
+  if(d){ d.tested = !d.tested; saveDevices(); renderDevices(); }
+}
+function startTest(id){
+  const d = devices.find(x=>x.id===id);
+  if(!d) return;
+  const typeLabel = d.type==='headphones' ? 'Naushnik' : 'Sichqoncha';
+  const banner = document.getElementById(d.type==='headphones' ? 'bannerHeadphones' : 'bannerMouse');
+  banner.textContent = 'Testlanmoqda: ' + d.name + ' (' + typeLabel + ')';
+  banner.classList.add('show');
+  switchTab(d.type);
+}
+function renderDevices(){
+  const list = document.getElementById('devList');
+  const empty = document.getElementById('devEmpty');
+  list.innerHTML = '';
+  if(devices.length===0){ empty.style.display='block'; return; }
+  empty.style.display='none';
+  devices.forEach(d=>{
+    const row = document.createElement('div');
+    row.className='devitem';
+    const typeLabel = d.type==='headphones' ? 'Naushnik' : 'Sichqoncha';
+    row.innerHTML = `
+      <div class="di-status ${d.tested ? 'done' : ''}" title="${d.tested ? 'Tekshirildi' : 'Kutilmoqda'}"></div>
+      <div style="flex:1">
+        <div class="di-name">${d.name}</div>
+        <div class="di-type">${typeLabel}</div>
+      </div>
+      <button onclick="startTest(${d.id})">Test qilish</button>
+      <button class="secondary" onclick="toggleTested(${d.id})">${d.tested ? 'Qayta' : "O'tdi"}</button>
+      <button class="secondary" onclick="removeDevice(${d.id})">O'chirish</button>
+    `;
+    list.appendChild(row);
+  });
+}
+renderDevices();
+
+// ---- AUDIO ----
+let actx;
+function ctx(){
+  if(!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+  return actx;
+}
+function getVol(){ return (document.getElementById('volSlider').value/100); }
+
+function playChannel(side){
+  const c = ctx();
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  const panner = c.createStereoPanner ? c.createStereoPanner() : null;
+  osc.frequency.value = 440;
+  osc.type = 'sine';
+  gain.gain.value = getVol()*0.3;
+  osc.connect(gain);
+  if(panner){
+    gain.connect(panner);
+    panner.connect(c.destination);
+    panner.pan.value = side==='left' ? -1 : side==='right' ? 1 : 0;
+  } else {
+    gain.connect(c.destination);
+  }
+  osc.start();
+  osc.stop(c.currentTime + 0.8);
+}
+
+function playTone(freq){
+  const c = ctx();
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.frequency.value = freq;
+  osc.type = 'sine';
+  gain.gain.value = getVol()*0.25;
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start();
+  osc.stop(c.currentTime + 0.9);
+}
+
+function playSweep(){
+  const c = ctx();
+  const osc = c.createOscillator();
+  const gain = c.createGain();
+  osc.type='sine';
+  gain.gain.value = getVol()*0.25;
+  osc.frequency.setValueAtTime(100, c.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(8000, c.currentTime+2);
+  osc.connect(gain); gain.connect(c.destination);
+  osc.start();
+  osc.stop(c.currentTime+2);
+}
+
+function updateVol(){
+  document.getElementById('volVal').textContent = document.getElementById('volSlider').value + '%';
+}
+
+// ---- MIC ----
+let micStream, micCtx, micActive=false;
+async function toggleMic(){
+  const btn = document.getElementById('micBtn');
+  const note = document.getElementById('micNote');
+  if(micActive){
+    micStream.getTracks().forEach(t=>t.stop());
+    micActive=false;
+    btn.textContent='Mikrofonni yoqish';
+    document.getElementById('micBar').style.width='0%';
+    return;
+  }
+  try{
+    micStream = await navigator.mediaDevices.getUserMedia({audio:true});
+    micCtx = ctx();
+    const src = micCtx.createMediaStreamSource(micStream);
+    const analyser = micCtx.createAnalyser();
+    analyser.fftSize = 256;
+    src.connect(analyser);
+    const data = new Uint8Array(analyser.frequencyBinCount);
+    micActive=true;
+    btn.textContent='Mikrofonni o\'chirish';
+    note.textContent='';
+    function loop(){
+      if(!micActive) return;
+      analyser.getByteFrequencyData(data);
+      let sum=0; for(const v of data) sum+=v;
+      const level = Math.min(100, (sum/data.length)*1.3);
+      document.getElementById('micBar').style.width = level+'%';
+      requestAnimationFrame(loop);
+    }
+    loop();
+  }catch(e){
+    note.textContent = 'Mikrofonga ruxsat berilmadi yoki topilmadi.';
+  }
+}
+
+// ---- MOUSE BUTTONS ----
+let counts = {0:0,1:0,2:0};
+const idMap = {0:'btnLeft',1:'btnMiddle',2:'btnRight'};
+const cntMap = {0:'cntLeft',1:'cntMiddle',2:'cntRight'};
+let lastClickTime=0, doubleCount=0;
+document.addEventListener('mouseup', e=>{
+  ['btnLeft','btnMiddle','btnRight'].forEach(id=>document.getElementById(id).classList.remove('flash'));
+});
+function flashBtn(id, e, btnIndex){
+  e.preventDefault();
+  document.getElementById(id).classList.add('flash');
+  counts[btnIndex]++;
+  document.getElementById(cntMap[btnIndex]).textContent = counts[btnIndex];
+  if(btnIndex===0){
+    const now = Date.now();
+    if(now - lastClickTime < 400){ doubleCount++; document.getElementById('cntDouble').textContent = doubleCount; }
+    lastClickTime = now;
+  }
+}
+
+// ---- MOUSE MOVEMENT ----
+let lastX=null,lastY=null,lastT=null,totalDist=0;
+function trackMove(e){
+  const pad = document.getElementById('movePad');
+  const rect = pad.getBoundingClientRect();
+  const x = e.clientX-rect.left, y=e.clientY-rect.top;
+  document.getElementById('dot').style.left = x+'px';
+  document.getElementById('dot').style.top = y+'px';
+  const now = performance.now();
+  if(lastX!==null){
+    const dx=x-lastX, dy=y-lastY, dist=Math.sqrt(dx*dx+dy*dy);
+    const dt=(now-lastT)/1000;
+    totalDist += dist;
+    document.getElementById('moveDist').textContent = Math.round(totalDist);
+    if(dt>0) document.getElementById('moveSpeed').textContent = Math.round(dist/dt);
+  }
+  lastX=x; lastY=y; lastT=now;
+}
+function resetMove(){
+  totalDist=0; lastX=null; lastY=null;
+  document.getElementById('moveDist').textContent='0';
+  document.getElementById('moveSpeed').textContent='0';
+}
+
+// ---- SCROLL TEST ----
+function onScroll(){
+  const box = document.getElementById('scrollBox');
+  document.getElementById('scrollInd').textContent = 'Scroll: ' + Math.round(box.scrollTop) + 'px';
+}
+</script>
+</body>
+</html>

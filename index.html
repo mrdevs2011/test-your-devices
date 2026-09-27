@@ -170,7 +170,7 @@
 
   <div class="card">
     <h2>Ovoz balandligi</h2>
-    <input type="range" id="volSlider" min="0" max="100" value="50" oninput="updateVol()">
+    <input type="range" id="volSlider" min="0" max="100" value="50" oninput="updateVol()" onchange="logVolumeChange()">
     <div class="val" id="volVal">50%</div>
     <button class="secondary" style="margin-top:10px" onclick="playSweep()">Uzluksiz tovush yurgizish (2s)</button>
   </div>
@@ -244,6 +244,24 @@ document.querySelectorAll('.tab').forEach(t=>{
 // ---- DEVICES (dashboard) ----
 let devices = [];
 try{ devices = JSON.parse(localStorage.getItem('tyd_devices')||'[]'); }catch(e){ devices = []; }
+devices.forEach(d=>{ if(!Array.isArray(d.events)) d.events = []; });
+let activeDevice = null; // reference into devices array
+
+let downloadsCap = null;
+(async function initCaps(){
+  try{
+    if(window.claude && window.claude.use){
+      downloadsCap = await claude.use('downloads');
+    }
+  }catch(e){ downloadsCap = null; }
+})();
+
+function logEvent(forType, action, details){
+  if(!activeDevice || activeDevice.type !== forType) return;
+  activeDevice.events.push({ ts: new Date().toISOString(), action, details: details||{} });
+  saveDevices();
+}
+
 function saveDevices(){
   try{ localStorage.setItem('tyd_devices', JSON.stringify(devices)); }catch(e){}
 }
@@ -252,13 +270,14 @@ function addDevice(){
   const name = nameEl.value.trim();
   const type = document.getElementById('devType').value;
   if(!name) return;
-  devices.push({id:Date.now(), name, type, tested:false});
+  devices.push({id:Date.now(), name, type, tested:false, createdAt:new Date().toISOString(), events:[]});
   nameEl.value='';
   saveDevices();
   renderDevices();
 }
 function removeDevice(id){
   devices = devices.filter(d=>d.id!==id);
+  if(activeDevice && activeDevice.id===id) activeDevice=null;
   saveDevices();
   renderDevices();
 }
@@ -269,11 +288,68 @@ function toggleTested(id){
 function startTest(id){
   const d = devices.find(x=>x.id===id);
   if(!d) return;
+  activeDevice = d;
   const typeLabel = d.type==='headphones' ? 'Naushnik' : 'Sichqoncha';
   const banner = document.getElementById(d.type==='headphones' ? 'bannerHeadphones' : 'bannerMouse');
-  banner.textContent = 'Testlanmoqda: ' + d.name + ' (' + typeLabel + ')';
+  banner.textContent = 'Testlanmoqda: ' + d.name + ' (' + typeLabel + ') — barcha amallar yoziladi';
   banner.classList.add('show');
   switchTab(d.type);
+}
+
+function summarize(d){
+  const ev = d.events || [];
+  const count = a => ev.filter(e=>e.action===a).length;
+  if(d.type==='headphones'){
+    return {
+      totalEvents: ev.length,
+      stereoTests: count('stereo_test'),
+      toneTests: count('tone_test'),
+      sweepTests: count('sweep_test'),
+      volumeChanges: count('volume_change'),
+      micSessions: count('mic_start')
+    };
+  }
+  const moveEvents = ev.filter(e=>e.action==='move_sample');
+  const speeds = moveEvents.map(e=>e.details.speed||0);
+  const dists = moveEvents.map(e=>e.details.distance||0);
+  return {
+    totalEvents: ev.length,
+    leftClicks: count('click_left'),
+    middleClicks: count('click_middle'),
+    rightClicks: count('click_right'),
+    doubleClicks: count('double_click'),
+    scrollEvents: count('scroll'),
+    totalMoveDistancePx: Math.round(dists.reduce((a,b)=>a+b,0)),
+    maxMoveSpeedPxPerSec: speeds.length ? Math.round(Math.max(...speeds)) : 0,
+    avgMoveSpeedPxPerSec: speeds.length ? Math.round(speeds.reduce((a,b)=>a+b,0)/speeds.length) : 0
+  };
+}
+
+async function downloadDevice(id){
+  const d = devices.find(x=>x.id===id);
+  if(!d) return;
+  const payload = {
+    device: { id: d.id, name: d.name, type: d.type, tested: d.tested, createdAt: d.createdAt },
+    exportedAt: new Date().toISOString(),
+    summary: summarize(d),
+    events: d.events || []
+  };
+  const json = JSON.stringify(payload, null, 2);
+  const filename = (d.name.trim().replace(/[^a-zA-Z0-9\-_ ]/g,'') || 'device') + '.json';
+  if(downloadsCap){
+    try{
+      await downloadsCap.save({ filename, data: json });
+      return;
+    }catch(e){ /* fall through to browser fallback */ }
+  }
+  try{
+    const blob = new Blob([json], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }catch(e){}
 }
 function renderDevices(){
   const list = document.getElementById('devList');
@@ -289,10 +365,11 @@ function renderDevices(){
       <div class="di-status ${d.tested ? 'done' : ''}" title="${d.tested ? 'Tekshirildi' : 'Kutilmoqda'}"></div>
       <div style="flex:1">
         <div class="di-name">${d.name}</div>
-        <div class="di-type">${typeLabel}</div>
+        <div class="di-type">${typeLabel} &middot; ${(d.events||[]).length} yozuv</div>
       </div>
       <button onclick="startTest(${d.id})">Test qilish</button>
       <button class="secondary" onclick="toggleTested(${d.id})">${d.tested ? 'Qayta' : "O'tdi"}</button>
+      <button class="secondary" onclick="downloadDevice(${d.id})">JSON</button>
       <button class="secondary" onclick="removeDevice(${d.id})">O'chirish</button>
     `;
     list.appendChild(row);
@@ -326,6 +403,7 @@ function playChannel(side){
   }
   osc.start();
   osc.stop(c.currentTime + 0.8);
+  logEvent('headphones', 'stereo_test', { side, frequencyHz:440, volumePct: Math.round(getVol()*100) });
 }
 
 function playTone(freq){
@@ -338,6 +416,7 @@ function playTone(freq){
   osc.connect(gain); gain.connect(c.destination);
   osc.start();
   osc.stop(c.currentTime + 0.9);
+  logEvent('headphones', 'tone_test', { frequencyHz: freq, volumePct: Math.round(getVol()*100) });
 }
 
 function playSweep(){
@@ -351,14 +430,18 @@ function playSweep(){
   osc.connect(gain); gain.connect(c.destination);
   osc.start();
   osc.stop(c.currentTime+2);
+  logEvent('headphones', 'sweep_test', { fromHz:100, toHz:8000, durationSec:2, volumePct: Math.round(getVol()*100) });
 }
 
 function updateVol(){
   document.getElementById('volVal').textContent = document.getElementById('volSlider').value + '%';
 }
+function logVolumeChange(){
+  logEvent('headphones', 'volume_change', { volumePct: Number(document.getElementById('volSlider').value) });
+}
 
 // ---- MIC ----
-let micStream, micCtx, micActive=false;
+let micStream, micCtx, micActive=false, micStartTs=null;
 async function toggleMic(){
   const btn = document.getElementById('micBtn');
   const note = document.getElementById('micNote');
@@ -367,6 +450,8 @@ async function toggleMic(){
     micActive=false;
     btn.textContent='Mikrofonni yoqish';
     document.getElementById('micBar').style.width='0%';
+    const durationSec = micStartTs ? Math.round((Date.now()-micStartTs)/100)/10 : 0;
+    logEvent('headphones', 'mic_stop', { durationSec });
     return;
   }
   try{
@@ -378,6 +463,8 @@ async function toggleMic(){
     src.connect(analyser);
     const data = new Uint8Array(analyser.frequencyBinCount);
     micActive=true;
+    micStartTs = Date.now();
+    logEvent('headphones', 'mic_start', {});
     btn.textContent='Mikrofonni o\'chirish';
     note.textContent='';
     function loop(){
@@ -407,15 +494,21 @@ function flashBtn(id, e, btnIndex){
   document.getElementById(id).classList.add('flash');
   counts[btnIndex]++;
   document.getElementById(cntMap[btnIndex]).textContent = counts[btnIndex];
+  const names = {0:'left',1:'middle',2:'right'};
+  logEvent('mouse', 'click_'+names[btnIndex], { button: names[btnIndex] });
   if(btnIndex===0){
     const now = Date.now();
-    if(now - lastClickTime < 400){ doubleCount++; document.getElementById('cntDouble').textContent = doubleCount; }
+    if(now - lastClickTime < 400){
+      doubleCount++;
+      document.getElementById('cntDouble').textContent = doubleCount;
+      logEvent('mouse', 'double_click', { intervalMs: now - lastClickTime });
+    }
     lastClickTime = now;
   }
 }
 
 // ---- MOUSE MOVEMENT ----
-let lastX=null,lastY=null,lastT=null,totalDist=0;
+let lastX=null,lastY=null,lastT=null,totalDist=0,lastLogT=0;
 function trackMove(e){
   const pad = document.getElementById('movePad');
   const rect = pad.getBoundingClientRect();
@@ -428,7 +521,12 @@ function trackMove(e){
     const dt=(now-lastT)/1000;
     totalDist += dist;
     document.getElementById('moveDist').textContent = Math.round(totalDist);
-    if(dt>0) document.getElementById('moveSpeed').textContent = Math.round(dist/dt);
+    const speed = dt>0 ? dist/dt : 0;
+    if(dt>0) document.getElementById('moveSpeed').textContent = Math.round(speed);
+    if(now - lastLogT > 150){
+      logEvent('mouse', 'move_sample', { distance: Math.round(dist), speed: Math.round(speed) });
+      lastLogT = now;
+    }
   }
   lastX=x; lastY=y; lastT=now;
 }
@@ -439,9 +537,13 @@ function resetMove(){
 }
 
 // ---- SCROLL TEST ----
+let scrollLogTimer=null;
 function onScroll(){
   const box = document.getElementById('scrollBox');
-  document.getElementById('scrollInd').textContent = 'Scroll: ' + Math.round(box.scrollTop) + 'px';
+  const top = Math.round(box.scrollTop);
+  document.getElementById('scrollInd').textContent = 'Scroll: ' + top + 'px';
+  clearTimeout(scrollLogTimer);
+  scrollLogTimer = setTimeout(()=> logEvent('mouse', 'scroll', { scrollTopPx: top }), 250);
 }
 </script>
 </body>
